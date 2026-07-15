@@ -34,12 +34,13 @@ Everything is sequenced around that.
 | Phase | What | Status |
 |---|---|---|
 | **1** | Branded pitch demo (site + booking + WhatsApp sim + dashboard) | ✅ **DONE** |
-| **1.5** | Real WhatsApp bot on Meta free test number (Dr. Adel can text it) | ⬜ Not started |
+| **1.5** | Real WhatsApp bot on Meta free test number (Dr. Adel can text it) | ✅ **CODE DONE** — needs your API keys, see `whatsapp-bot/SETUP.md` |
 | **2** | Real backend: Supabase/Postgres, multi-tenant | ⬜ Not started |
 | **3** | Production on clinic's own WhatsApp number + reminders | ⬜ Not started (after they sign) |
 | — | **Deploy demo + send the pitch DM** | ⬜ **DO THIS NEXT** |
 
 **Immediate next action:** deploy `index.html` to a live URL and DM the clinic. See §6.
+The bot is built and typechecks clean, but it can't run until you create a Meta app + Anthropic key — follow `whatsapp-bot/SETUP.md` (~45 min) before the pitch call.
 
 ---
 
@@ -137,16 +138,20 @@ Create these accounts / keys (all have free tiers) and **save the keys in a pass
 
 ## 7. Roadmap — remaining work in detail
 
-### ⬜ Phase 1.5 — Real WhatsApp bot on a test number
+### ✅ Phase 1.5 — Real WhatsApp bot on a test number — CODE COMPLETE
 Goal: Dr. Adel texts a number and it actually books him. This is the deal-closer.
-- [ ] Create a Next.js app (`npx create-next-app@latest`)
-- [ ] Set up Meta for Developers app → add **WhatsApp** product → get **test number** + temporary token
-- [ ] Build a **webhook** API route (`/api/whatsapp`): verify (GET), receive messages (POST)
-- [ ] Send replies via the Cloud API (`POST /{phone-number-id}/messages`)
-- [ ] Wire **Claude** as the brain: system prompt = "you are Dental 8's receptionist", give it tools
-      (`get_availability`, `book_appointment`, `reschedule`, `cancel`) → it replies in the patient's language
-- [ ] Register Dr. Adel's number as a test recipient so he can message it
-- [ ] Deploy to Vercel (webhook needs a public HTTPS URL)
+Lives in [`whatsapp-bot/`](whatsapp-bot/) — Next.js + Claude tool use. Typechecks clean; booking engine has passing tests (`npm run smoke`, 17/17).
+- [x] Next.js app + `/api/whatsapp` webhook (GET verify, POST receive, de-dupes Meta retries)
+- [x] Meta Cloud API send/parse (`src/lib/whatsapp.ts`)
+- [x] Claude brain with 5 tools — `get_availability`, `book_appointment`, `find_my_appointments`, `reschedule_appointment`, `cancel_appointment` (`src/lib/claude.ts`)
+- [x] Bilingual AR/EN system prompt with clinic facts, no-medical-advice + no-pricing guardrails
+- [x] Booking engine: Kuwait UTC+3, Friday closed, overlap prevention (`src/lib/booking.ts`)
+- [x] Multi-turn conversation memory, 6h TTL (`src/lib/conversations.ts`)
+- [ ] **YOUR TURN:** create Meta app + Anthropic key, deploy, register Dr. Adel's number → **`whatsapp-bot/SETUP.md`** (~45 min)
+
+**Known Phase 1.5 limitation:** bookings + conversation history are in server memory, so they reset when the serverless instance goes cold. Fine for a live demo, not production — Phase 2 fixes it.
+
+**API facts worth remembering** (verified, not from memory): model is `claude-opus-4-8` ($5/$25 per MTok); `budget_tokens` and `temperature`/`top_p`/`top_k` are **removed** on Opus 4.8 and return 400 — use `thinking: {type:"adaptive"}` + `output_config.effort`. The SDK's `betaZodTool` needs Zod **v4** types (`import { z } from "zod/v4"`). Prompt caching needs a ≥4096-token prefix on Opus 4.8, so it won't engage at our prompt size.
 
 ### ⬜ Phase 2 — Real backend
 - [ ] Supabase project + tables: `clinics`, `services`, `dentists`, `availability`, `appointments`, `patients`
